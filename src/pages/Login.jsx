@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 export default function Login() {
   const [modo, setModo] = useState('login')
   const [email, setEmail] = useState('')
+  const [nome, setNome] = useState('')
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -17,10 +18,26 @@ export default function Login() {
     if (modo === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
       if (error) setErro('Email ou senha incorretos')
+
     } else {
-      const { error } = await supabase.auth.signUp({ email, password: senha })
-      if (error) setErro(error.message)
-      else setMsg('Verifique seu email para confirmar o cadastro!')
+      if (!nome.trim()) { setErro('Digite seu nome'); setLoading(false); return }
+
+      const { data, error } = await supabase.auth.signUp({ email, password: senha })
+      if (error) { setErro(error.message); setLoading(false); return }
+
+      // Criar perfil na tabela users automaticamente
+      if (data.user) {
+        await supabase.from('users').upsert({
+          name: nome.trim(),
+          email: email.toLowerCase(),
+          role: 'jogador',
+          player_type: 'mensalista',
+          avatar: '⚽',
+          active: true,
+        }, { onConflict: 'email' })
+      }
+
+      setMsg('Cadastro realizado! Entrando...')
     }
     setLoading(false)
   }
@@ -59,6 +76,14 @@ export default function Login() {
           )}
 
           <div className="space-y-3 mb-5">
+            {modo === 'cadastro' && (
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Seu nome</label>
+                <input type="text" value={nome} onChange={e => setNome(e.target.value)}
+                  placeholder="Ex: Carlos Silva"
+                  className="w-full bg-[#0a0a0a] border border-gray-700 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[#1a5c2a]" />
+              </div>
+            )}
             <div>
               <label className="text-gray-400 text-xs mb-1 block">Email</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
