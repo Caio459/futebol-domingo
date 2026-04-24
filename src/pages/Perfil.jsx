@@ -1,13 +1,6 @@
-import { useState } from 'react'
-import { Trophy, Target, TrendingUp, Calendar, CreditCard, CheckCircle, Clock } from 'lucide-react'
-
-const historico = [
-  { data: '06 Abr', gols: 2, assists: 1, resultado: 'Vitória' },
-  { data: '30 Mar', gols: 1, assists: 0, resultado: 'Empate' },
-  { data: '23 Mar', gols: 0, assists: 2, resultado: 'Vitória' },
-  { data: '16 Mar', gols: 3, assists: 0, resultado: 'Vitória' },
-  { data: '09 Mar', gols: 0, assists: 1, resultado: 'Derrota' },
-]
+import { useState, useEffect } from 'react'
+import { Target, TrendingUp, Calendar, CreditCard, CheckCircle, Clock } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 const pagamentos = [
   { mes: 'Abril 2025', status: 'pago', valor: 'R$ 80' },
@@ -18,6 +11,55 @@ const pagamentos = [
 
 export default function Perfil() {
   const [aba, setAba] = useState(0)
+  const [user, setUser] = useState(null)
+  const [perfil, setPerfil] = useState(null)
+  const [eventos, setEventos] = useState([])
+  const [partidas, setPartidas] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+
+      if (user) {
+        const { data: p } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', user.email)
+          .single()
+        setPerfil(p)
+
+        if (p) {
+          const { data: ev } = await supabase
+            .from('match_events')
+            .select('*, matches(*)')
+            .eq('user_id', p.id)
+          setEventos(ev || [])
+        }
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+  }
+
+  const gols = eventos.filter(e => e.type === 'goal').length
+  const assists = eventos.filter(e => e.type === 'assist').length
+  const nome = perfil?.name || user?.email?.split('@')[0] || 'Jogador'
+  const avatar = perfil?.avatar || '👤'
+  const posicao = perfil?.position || 'Posição não definida'
+  const numero = perfil?.number || '--'
+  const tipo = perfil?.player_type || 'mensalista'
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center pb-20">
+      <div className="text-5xl animate-spin">⚽</div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] pb-20 pt-6 px-4">
@@ -25,26 +67,25 @@ export default function Perfil() {
       {/* Card do jogador */}
       <div className="bg-gradient-to-br from-[#1a5c2a] to-[#0a2e14] rounded-2xl p-6 mb-6 text-center border border-[#1a5c2a]">
         <div className="w-20 h-20 rounded-full bg-[#0a0a0a]/40 flex items-center justify-center text-5xl mx-auto mb-3">
-          ⚡
+          {avatar}
         </div>
-        <h1 className="text-white text-2xl font-bold">Marcel</h1>
-        <p className="text-gray-300 text-sm mt-1">Meio-campista • #10</p>
-        <span className="inline-block mt-2 bg-[#f5c518]/20 text-[#f5c518] text-xs font-bold px-3 py-1 rounded-full">
-          MENSALISTA
+        <h1 className="text-white text-2xl font-bold">{nome}</h1>
+        <p className="text-gray-300 text-sm mt-1">{posicao} • #{numero}</p>
+        <span className="inline-block mt-2 bg-[#f5c518]/20 text-[#f5c518] text-xs font-bold px-3 py-1 rounded-full uppercase">
+          {tipo}
         </span>
 
-        {/* Stats rápidos */}
         <div className="grid grid-cols-3 gap-3 mt-5">
           <div className="bg-[#0a0a0a]/40 rounded-xl p-3">
-            <p className="text-[#f5c518] font-bold text-xl">9</p>
+            <p className="text-[#f5c518] font-bold text-xl">{gols}</p>
             <p className="text-gray-300 text-xs">Gols</p>
           </div>
           <div className="bg-[#0a0a0a]/40 rounded-xl p-3">
-            <p className="text-[#f5c518] font-bold text-xl">8</p>
+            <p className="text-[#f5c518] font-bold text-xl">{assists}</p>
             <p className="text-gray-300 text-xs">Assists</p>
           </div>
           <div className="bg-[#0a0a0a]/40 rounded-xl p-3">
-            <p className="text-[#f5c518] font-bold text-xl">12</p>
+            <p className="text-[#f5c518] font-bold text-xl">{new Set(eventos.map(e=>e.match_id)).size}</p>
             <p className="text-gray-300 text-xs">Jogos</p>
           </div>
         </div>
@@ -60,31 +101,22 @@ export default function Perfil() {
         ))}
       </div>
 
-      {/* Histórico de partidas */}
+      {/* Histórico */}
       {aba === 0 && (
         <div className="space-y-3">
-          {historico.map((jogo, i) => (
+          {eventos.length === 0 ? (
+            <div className="bg-[#111827] rounded-2xl p-6 text-center border border-gray-800">
+              <p className="text-gray-400 text-sm">Nenhum evento registrado ainda</p>
+            </div>
+          ) : eventos.slice(0, 10).map((ev, i) => (
             <div key={i} className="bg-[#111827] rounded-2xl p-4 border border-gray-800 flex items-center gap-4">
-              <div className="text-center min-w-[48px]">
-                <Calendar size={14} className="text-gray-500 mx-auto mb-1" />
-                <p className="text-gray-400 text-xs">{jogo.data}</p>
-              </div>
               <div className="flex-1">
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                  jogo.resultado === 'Vitória' ? 'bg-green-500/20 text-green-400' :
-                  jogo.resultado === 'Empate' ? 'bg-yellow-500/20 text-yellow-400' :
-                  'bg-red-500/20 text-red-400'
-                }`}>{jogo.resultado}</span>
-              </div>
-              <div className="flex gap-4 text-right">
-                <div className="flex items-center gap-1">
-                  <Target size={13} className="text-[#1a5c2a]" />
-                  <span className="text-white text-sm font-bold">{jogo.gols}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <TrendingUp size={13} className="text-[#f5c518]" />
-                  <span className="text-white text-sm font-bold">{jogo.assists}</span>
-                </div>
+                <p className="text-white font-semibold text-sm">
+                  {ev.type === 'goal' ? '⚽ Gol' : ev.type === 'assist' ? '🎯 Assistência' : '↩️ Gol Contra'}
+                </p>
+                <p className="text-gray-400 text-xs mt-0.5">
+                  {ev.matches?.date ? new Date(ev.matches.date).toLocaleDateString('pt-BR') : 'Data não definida'}
+                </p>
               </div>
             </div>
           ))}
@@ -111,6 +143,12 @@ export default function Perfil() {
           ))}
         </div>
       )}
+
+      {/* Botão sair */}
+      <button onClick={handleLogout}
+        className="w-full mt-6 bg-red-500/20 border border-red-500/30 text-red-400 font-semibold py-3 rounded-2xl">
+        🚪 Sair da conta
+      </button>
     </div>
   )
 }
